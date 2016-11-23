@@ -6,9 +6,12 @@
 using namespace std;
 #define WHITE 1.0, 1.0, 1.0
 #define BLACK 0.0, 0.0, 0.0
-#define RED 1.0, 0.0, 0.0
-#define GREEN 1.0, 1.0, 0.0
-#define BLUE 0.0, 1.0, 0.0
+#define OBSTACLE 0.5, 0.0, 0.4
+#define BACKGROUND 0.8, 0.0, 0.9
+#define CURRENT 0.1, 0.2, 0.4
+#define SOURCE 0.3, 0.6, 0.0
+#define VISITED 0.0, 0.0, 0.9
+#define FINAL_PATH 0.0, 0.3, 0.7
 
 #define F first
 #define S second
@@ -25,6 +28,23 @@ typedef struct {
 	double cost;
 	ii parent;
 } state_info;
+// Global Variables
+char title[] = "Maze";    // Windowed mode's title
+int refreshMillis = 300;                 // Refresh period in milliseconds
+ii source, destination;
+vvi maze, visited;
+vector<ii> shortest_path, exploration;
+const int ROCK = -1, GEM = 1, FREE = 0;
+
+GLint FPS = 24;
+GLint window_width = 700;
+GLint window_height = 500;
+GLfloat left_pos = 0.0;
+GLfloat right_pos = 1.0;
+GLfloat bottom_pos = 0.0;
+GLfloat top_pos = 1.0;
+GLint game_width = 4;
+GLint game_height = 4;
 
 // Global variables
 double STRAIGHT = 1;
@@ -40,8 +60,9 @@ bool valid(int i, int j, int r, int c) {
 	return false;
 }
 
-vector<ii> findPathByDjikstra(ii s, ii d, vvi grid) {
+pair<vector<ii>, vector<ii>> findPathByDjikstra(ii s, ii d, vvi grid) {
 	vector<ii> path;
+	vector<ii> exploration;
 	priority_queue<pq_entry, vector<pq_entry>, greater<pq_entry> > pq;
 	map<state, state_info> m;
 	double iter = 0;
@@ -52,6 +73,7 @@ vector<ii> findPathByDjikstra(ii s, ii d, vvi grid) {
 	while (!pq.empty()) {
 		pq_entry front = pq.top();
 		state pop = front.S;
+		exploration.pb(pop);
 		double pcost = front.F;
 		if (pop == d) {
 			state temp = d;
@@ -62,6 +84,7 @@ vector<ii> findPathByDjikstra(ii s, ii d, vvi grid) {
 				temp = m[temp].parent;
 			}
 			reverse(path.begin(), path.end());
+			break;
 		}
 		pq.pop();
 		if (pcost > m[pop].cost)
@@ -97,26 +120,8 @@ vector<ii> findPathByDjikstra(ii s, ii d, vvi grid) {
 	if (m.find(d) == m.end())
 		cout << "No Path Found";
 	cout << '\n';
-	return path;
+	return mp(exploration, path);
 }
-
-// Global Variables
-char title[] = "Maze";    // Windowed mode's title
-int refreshMillis = 300;                 // Refresh period in milliseconds
-ii source, destination;
-vvi maze;
-vector<ii> shortest_path;
-const int ROCK = -1, GEM = 1, FREE = 0;
-
-GLint FPS = 24;
-GLint window_width = 700;
-GLint window_height = 500;
-GLfloat left_pos = 0.0;
-GLfloat right_pos = 1.0;
-GLfloat bottom_pos = 0.0;
-GLfloat top_pos = 1.0;
-GLint game_width = 4;
-GLint game_height = 4;
 
 void print_vector(vector<ii> path) {
 	for(auto pos: path) {
@@ -129,19 +134,28 @@ void print_pair(ii p) {
 }
 int RunMode = 1;
 int move_number = 0;
-int AnimateStep = 2;
 
 void drawScene() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	ii bot_position;
+	bool explore_finished = false;
     if (RunMode==1) {
         // Calculate animation parameters
-        if(move_number >= (int)shortest_path.size()){
-            move_number = 0;
+        int b = shortest_path.size();
+        int a = exploration.size();
+        if(move_number >= (int)(a + b)){
+            RunMode = 0;
+            bot_position = destination;
+        } else if(move_number >= a) {
+            explore_finished = true;
+            cout << "Goal found!" << endl;
+            bot_position=shortest_path[move_number - a];
+            move_number++;
+        }else {
+            bot_position=exploration[move_number];
+            move_number++;
         }
-        bot_position=shortest_path[move_number];
-        move_number++;
     }
 	GLfloat xSize = (right_pos - left_pos) / game_width;
 	GLfloat ySize = (top_pos - bottom_pos) / game_height;
@@ -150,20 +164,24 @@ void drawScene() {
 	for (GLint x = 0; x < game_width; ++x) {
 		for (GLint y = 0; y < game_height; ++y) {
             int value  = maze[y][x];
-            if(x == bot_position.S && y == bot_position.F){
+            if(explore_finished && x == bot_position.S && y == bot_position.F) {
                 print_pair(bot_position);
-                glColor3f(BLUE);
-            }
-             else if(x == source.S && y == source.F){
-                glColor3f(GREEN);
-            }
-			else if (value == GEM) {
+                visited[y][x] = 1;
+                glColor3f(FINAL_PATH);
+            } else if(x == bot_position.S && y == bot_position.F){
+                print_pair(bot_position);
+                visited[y][x] = 1;
+                glColor3f(CURRENT);
+            } else if(x == source.S && y == source.F){
+                glColor3f(SOURCE);
+            } else if (value == GEM) {
                 glColor3f(BLACK);
-            }
+            } else if (visited[y][x] == 1)
+				glColor3f(VISITED);
 			else if (value == FREE)
-				glColor3f(WHITE);
+				glColor3f(BACKGROUND);
 			else if (value == ROCK)
-				glColor3f(RED);
+				glColor3f(OBSTACLE);
 
 			glVertex2f(x * xSize + left_pos, y * ySize + bottom_pos); // S-W point
 			glVertex2f((x + 1) * xSize + left_pos, y * ySize + bottom_pos); // S-E point
@@ -214,13 +232,13 @@ void mySpecialKeyFunc( int key, int x, int y )
 {
    switch ( key ) {
    case GLUT_KEY_UP:
-      if ( AnimateStep > 3) {          // Do not reduce less than 2.
-         AnimateStep--;
+      if ( refreshMillis > 25) {          // Do not reduce less than 2.
+         refreshMillis -= 20;
       }
       break;
    case GLUT_KEY_DOWN:
-      if (AnimateStep<1000) {
-         AnimateStep++;
+      if (refreshMillis<1000) {
+         refreshMillis += 20;
       }
       break;
    }
@@ -234,6 +252,7 @@ void initialize_grid() {
     game_height = m;
     game_width = n;
     maze.assign(m, vi(n));
+    visited.assign(m, vi(n, 0));
     for (int i = 0; i < m; ++i) {
         for (int j = 0; j < n; ++j) {
             fin >> maze[i][j];
@@ -244,13 +263,15 @@ void initialize_grid() {
         }
     }
     fin >> source.first >> source.second;
-    shortest_path = findPathByDjikstra(source, destination, maze);
-    print_vector(shortest_path);
+    pair<vector<ii>, vector<ii>> data = findPathByDjikstra(source, destination, maze);
+    exploration = data.F;
+    shortest_path = data.S;
+    //print_vector(shortest_path);
     fin.close();
 }
 /* Initialize OpenGL Graphics */
 void initGL() {
-   glClearColor(0.0, 0.0, 0.0, 1.0); // Set background (clear) color to black
+   glClearColor(BACKGROUND, 1.0); // Set background (clear) color to black
 }
 /* Called back when the timer expired */
 void Timer(int value) {
