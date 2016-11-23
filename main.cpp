@@ -8,6 +8,7 @@ using namespace std;
 #define BLACK 0.0, 0.0, 0.0
 #define RED 1.0, 0.0, 0.0
 #define GREEN 1.0, 1.0, 0.0
+#define BLUE 0.0, 1.0, 0.0
 
 #define F first
 #define S second
@@ -188,7 +189,7 @@ ii dijkstra(ii source, Grid &grid) {
 	return goal_state;
 }
 
-void print_stack(stack<ii> &s) {
+void print_stack(stack<ii> s) {
 	while (!s.empty()) {
 		ii t = s.top();
 		cout << t.first << ' ' << t.second << ' ';
@@ -197,8 +198,15 @@ void print_stack(stack<ii> &s) {
 	cout << endl;
 }
 
+void print_path() {
+	for(auto pos: path) {
+        cout << "["<< pos.F<<","<< pos.S<< "] ";
+	}
+	cout << endl;
+}
+
 vector<ii> print_path(ii source, ii goal, Grid &grid) {
-    vector<ii> path;
+    vector<ii> path_vector;
 	if (goal == NIL)
 		cout << -1 << endl;
 	else {
@@ -210,31 +218,53 @@ vector<ii> print_path(ii source, ii goal, Grid &grid) {
 		}
 		states.push(source);
 		print_stack(states);
+
 		while (!states.empty()) {
             ii t = states.top();
-            path.push_back(t);
+            path_vector.push_back(t);
             states.pop();
         }
 	}
-	return path;
+	return path_vector;
 }
 
-void display() {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glLoadIdentity();
+int RunMode = 1;      // Used as a boolean (1 or 0) for "on" and "off"
 
+// The next global variable controls the animation's state and speed
+int move_number = 0;
+int AnimateStep = 2;
+
+/*
+* drawScene() handles the animation and the redrawing of the
+*      graphics window contents.
+*/
+void drawScene() {
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if (RunMode==1) {
+        // Calculate animation parameters
+        move_number++;
+        if(move_number >= (int)path.size()){
+            move_number = 0;
+        }
+    }
 	GLfloat xSize = (right_pos - left_pos) / game_width;
 	GLfloat ySize = (top_pos - bottom_pos) / game_height;
+
+    ii bot_position = path[move_number];
 
 	glBegin(GL_QUADS);
 	for (GLint x = 0; x < game_width; ++x) {
 		for (GLint y = 0; y < game_height; ++y) {
             int value  = grid[x][y].value;
-            if(x == source.S && y == source.F){
+            if(x == bot_position.S && y == bot_position.F){
+                glColor3f(BLUE);
+            }
+             else if(x == source.S && y == source.F){
                 glColor3f(GREEN);
             }
-			else if (value == GEM)
-				glColor3f(BLACK);
+			else if (value == GEM) {
+                glColor3f(BLACK);
+            }
 			else if (value == FREE)
 				glColor3f(WHITE);
 			else if (value == ROCK)
@@ -247,9 +277,13 @@ void display() {
 		}
 	}
 	glEnd();
-
+    // Flush the pipeline, swap the buffers
 	glFlush();
 	glutSwapBuffers();
+
+    if ( RunMode==1 ) {
+      glutPostRedisplay();   // Trigger an automatic redraw for animation
+    }
 }
 
 void reshape(int w, int h) {
@@ -268,22 +302,43 @@ void reshape(int w, int h) {
 	glutPostRedisplay();
 }
 
-void update(int value) {
+// glutKeyboardFunc is called below to set this function to handle
+//      all "normal" key presses.
+void myKeyboardFunc( unsigned char key, int x, int y )
+{
+   switch ( key ) {
+   case 'r':
+      RunMode = 1-RunMode;      // Toggle to opposite value
+      if ( RunMode==1 ) {
+         glutPostRedisplay();
+      }
+      break;
+   case 's':
+      RunMode = 1;
+      drawScene();
+      RunMode = 0;
+      break;
+   case 27:   // Escape key
+      exit(1);
+   }
 }
-
-void key(unsigned char key, int x, int y) {
-    switch (key)
-    {
-        case 27 :
-        case 'q':
-            exit(0);
-            break;
-        case '+':
-            break;
-        case '-':
-            break;
-    }
-    glutPostRedisplay();
+// glutSpecialFunc is called below to set this function to handle
+//      all "special" key presses.  See glut.h for the names of
+//      special keys.
+void mySpecialKeyFunc( int key, int x, int y )
+{
+   switch ( key ) {
+   case GLUT_KEY_UP:
+      if ( AnimateStep > 3) {          // Do not reduce less than 2.
+         AnimateStep--;
+      }
+      break;
+   case GLUT_KEY_DOWN:
+      if (AnimateStep<1000) {
+         AnimateStep++;
+      }
+      break;
+   }
 }
 
 void initialize_grid() {
@@ -310,13 +365,19 @@ void initialize_grid() {
 int main(int argc, char **argv) {
 	glutInit(&argc, argv);
 	initialize_grid();
+    print_path();
+	// We're going to animate it, so double buffer
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH );
+
 	glutInitWindowSize(window_width, window_height);
 	glutInitWindowPosition(0, 0);
 	glutCreateWindow("Maze");
 	glClearColor(1, 1, 1, 1);
 	glutReshapeFunc(reshape);
-	glutDisplayFunc(display);
-	glutKeyboardFunc(key);
+	glutDisplayFunc(drawScene);
+	glutKeyboardFunc(myKeyboardFunc);   // Handles "normal" ascii symbols
+	glutSpecialFunc( mySpecialKeyFunc );      // Handles "special" keyboard keys
+	cout << "Arrow keys control speed.  Press \"r\" to run,  \"s\" to single step." << endl;
 	glutMainLoop();
 	return 0;
 }
