@@ -128,6 +128,72 @@ pair<vector<ii>, vector<ii> > findPathByDjikstra(ii s, ii d, vvi grid) {
 	return mp(exploration, path);
 }
 
+double heuristic_estimate(ii node, ii goal) {
+	return (double)(sqrt(pow(goal.F - node.F, 2) + pow(goal.S - node.S, 2)));
+}
+pair<vector<ii>, vector<ii> > findPathByAStar(ii s, ii d, vvi grid) {
+	vector<ii> path, explore;
+	priority_queue<pq_entry, vector<pq_entry>, greater<pq_entry> > pq;
+	map<state, state_info> m;
+	double iter = 0;
+	pq.push(mp(0 + heuristic_estimate(s,d), s));
+	iter++;
+	m[s].cost = 0;
+	m[s].parent = mp(-1, -1);
+	while (!pq.empty()) {
+		pq_entry front = pq.top();
+		state pop = front.S;
+		explore.pb(pop);
+		double pcost = front.F - heuristic_estimate(pop,d);
+		if (pop == d) {
+			state temp = d;
+			while (1) {
+				path.pb(temp);
+				if (temp == s)
+					break;
+				temp = m[temp].parent;
+			}
+			reverse(path.begin(), path.end());
+
+			break;
+		}
+		pq.pop();
+		if (pcost > m[pop].cost)
+			continue;
+		// add neighbors
+		for (int i = 0; i < (int) offsets.size(); i++) {
+			int ni = pop.F + offsets[i].F;
+			int nj = pop.S + offsets[i].S;
+			if (valid(ni, nj, grid.size(), grid[0].size())) {
+				if (grid[ni][nj] != -1) {
+					state child;
+					child.F = ni;
+					child.S = nj;
+					double path_cost = m[pop].cost;
+					double delay = iter * epsilon;
+					if (abs(offsets[i].F) == 1 && abs(offsets[i].S) == 1)
+						path_cost += DIAGONAL;
+					else
+						path_cost += STRAIGHT;
+					path_cost += delay;
+					if (m.find(child) == m.end() || path_cost < m[child].cost) {
+						m[child].cost = path_cost;
+						m[child].parent = pop;
+						pq.push(mp(path_cost + heuristic_estimate(child ,d), child));
+						iter++;
+					}
+				}
+
+			}
+		}
+
+	}
+	if (m.find(d) == m.end())
+		cout << "No Path Found";
+	cout << '\n';
+	return mp(explore, path);
+}
+
 void print_vector(vector<ii> path) {
 	for(auto pos: path) {
         cout << "("<< pos.F<<","<< pos.S<< ") ";
@@ -249,6 +315,17 @@ void myKeyboardFunc( unsigned char key, int x, int y )
             taking_input = false;
             printf("Finished taking input.\n");
             pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
+            exploration = data.F;
+            shortest_path = data.S;
+            paused = false;
+        }
+        break;
+    case '2':
+        if(taking_input && !source_input && dest_input) {
+            dest_input = false;
+            taking_input = false;
+            printf("Finished taking input.\n");
+            pair<vector<ii>, vector<ii> > data = findPathByAStar(source, destination, maze);
             exploration = data.F;
             shortest_path = data.S;
             paused = false;
