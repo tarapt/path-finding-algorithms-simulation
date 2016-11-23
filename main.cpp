@@ -7,7 +7,7 @@ using namespace std;
 #define WHITE 1.0, 1.0, 1.0
 #define DESTINATION 1.0, 0.0, 0.0
 #define OBSTACLE 0.5, 0.0, 0.4
-#define BACKGROUND 0.8, 0.0, 0.9
+#define BACKGROUND 0.1, 0.3, 0.1
 #define CURRENT 0.1, 0.2, 0.4
 #define SOURCE 0.3, 0.6, 0.0
 #define VISITED 0.0, 0.0, 0.9
@@ -32,13 +32,13 @@ typedef struct {
 // Global Variables
 char title[] = "Maze";
 int refreshMillis = 300;                 // Refresh period in milliseconds
-ii source, destination;
+ii source = ii(-1, -1), destination = ii(-1, -1);
 bool taking_input = false, source_input = false, dest_input = false;
 vvi maze, visited;
 vector<ii> shortest_path, exploration;
 const int ROCK = -1, GEM = 1, FREE = 0;
 
-GLfloat BORDER_WIDTH = 3.0;
+GLfloat BORDER_WIDTH = 4.0;
 GLint window_width = 700;
 GLint window_height = 500;
 GLfloat left_pos = 0.0;
@@ -150,7 +150,7 @@ void drawScene() {
             paused = true;
             bot_position = destination;
         } else if(move_number == a) {
-            cout << "Goal found!" << endl;
+            cout << "Goal found!\nShowing the shortest path:-" << endl;
             explore_finished = true;
             bot_position=shortest_path[move_number - a];
             move_number++;
@@ -172,12 +172,13 @@ void drawScene() {
             if(taking_input){
                if(value == ROCK)
                     glColor3f(OBSTACLE);
-               else if (value == FREE)
-                    glColor3f(BACKGROUND);
                else if(x == source.S && y == source.F)
                     glColor3f(SOURCE);
                else if (value == GEM)
                     glColor3f(DESTINATION);
+               else if (value == FREE)
+                    glColor3f(BACKGROUND);
+
             } else {
                 if(explore_finished && x == bot_position.S && y == bot_position.F) {
                     print_pair(bot_position);
@@ -238,13 +239,19 @@ void reshape(int w, int h) {
 void myKeyboardFunc( unsigned char key, int x, int y )
 {
     switch ( key ) {
-    case 'r':
-    case 'R':
+    case 'p':
+    case 'P':
         paused = !paused;      // Toggle to opposite value
         if (!paused) {
          glutPostRedisplay();
         }
     break;
+    case 'r':
+    case 'R':
+        move_number = 0;
+        visited.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
+        paused = false;
+        break;
     case 's':
     case 'S':
         paused = false;
@@ -254,12 +261,12 @@ void myKeyboardFunc( unsigned char key, int x, int y )
     case 'f':
     case 'F':
         if(taking_input && !source_input && !dest_input) {
-            printf("Click on the source position, then press [F/f].\n");
+            printf("Right click on the source position, then press [F/f].\n");
             source_input = true;
         } else if(taking_input && source_input && !dest_input){
             source_input = false;
             dest_input = true;
-            printf("Click on the destination position, then press [F/f].\n");
+            printf("Right click on the destination position, then press [F/f].\n");
         } else if(taking_input && !source_input && dest_input) {
             dest_input = false;
             taking_input = false;
@@ -270,8 +277,8 @@ void myKeyboardFunc( unsigned char key, int x, int y )
             paused = false;
         }
         break;
-    /*case 27:   // Escape key
-        exit(1);*/
+      case 27:   // Escape key
+        exit(1);
    }
 }
 // glutSpecialFunc is called below to set this function to handle
@@ -298,10 +305,10 @@ void take_input() {
     cin >> MAZE_HEIGHT;
     printf("Columns: ");
     cin >> MAZE_WIDTH;
-    printf("Fill the board.");
+    printf("Mark the positions of obstacles.");
     maze.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
     visited.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
-    cout << "Task Finished (Press F/f): " << endl;
+    cout << " Task Finished? If Yes -> (Press F/f): " << endl;
     taking_input = true;
 }
 
