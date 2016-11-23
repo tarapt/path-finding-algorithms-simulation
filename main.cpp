@@ -35,6 +35,7 @@ int refreshMillis = 300;                 // Refresh period in milliseconds
 ii source = ii(-1, -1), destination = ii(-1, -1);
 bool taking_input = false, source_input = false, dest_input = false;
 vvi maze, visited;
+set<ii> final_path;
 vector<ii> shortest_path, exploration;
 const int ROCK = -1, GEM = 1, FREE = 0;
 
@@ -155,6 +156,7 @@ void drawScene() {
             bot_position=shortest_path[move_number - a];
             move_number++;
         } else if(move_number> a){
+            explore_finished = true;
             bot_position=shortest_path[move_number - a];
             move_number++;
         } else {
@@ -184,6 +186,8 @@ void drawScene() {
                     print_pair(bot_position);
                     visited[y][x] = 1;
                     glColor3f(FINAL_PATH);
+                } if(explore_finished && final_path.find(ii(y,x))!=final_path.end()){
+                    glColor3f(WHITE);
                 } else if(x == bot_position.S && y == bot_position.F){
                     print_pair(bot_position);
                     visited[y][x] = 1;
@@ -208,7 +212,6 @@ void drawScene() {
 	glEnd();
 	glColor3f(BORDER);
 	glLineWidth(BORDER_WIDTH);
-	glBegin(GL_LINES);
 	for (GLint x = 0; x < MAZE_WIDTH; ++x) {
 		for (GLint y = 0; y < MAZE_HEIGHT; ++y) {
             glBegin(GL_LINE_LOOP);
@@ -249,6 +252,7 @@ void myKeyboardFunc( unsigned char key, int x, int y )
     case 'r':
     case 'R':
         move_number = 0;
+        final_path.clear();
         visited.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
         paused = false;
         break;
@@ -274,6 +278,9 @@ void myKeyboardFunc( unsigned char key, int x, int y )
             pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
             exploration = data.F;
             shortest_path = data.S;
+            for(auto a: shortest_path) {
+                final_path.insert(a);
+            }
             paused = false;
         }
         break;
@@ -349,7 +356,7 @@ void mouse(int button, int state, int x, int y) {
     int row = (MAZE_HEIGHT - 1) - (int) (y / cell_height);
     int col = (int) (x / cell_width);
 
-    printf("Cell clicked: ");print_pair(ii(row, col));
+    //printf("Cell clicked: ");print_pair(ii(row, col));
 
     if(row < 0 || col < 0 || row >= MAZE_HEIGHT || col >= MAZE_WIDTH) {
         return;
