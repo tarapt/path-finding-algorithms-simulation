@@ -11,7 +11,8 @@ using namespace std;
 #define CURRENT 0.1, 0.2, 0.4
 #define SOURCE 0.3, 0.6, 0.0
 #define VISITED 0.0, 0.0, 0.9
-#define FINAL_PATH 0.0, 0.3, 0.7
+#define FINAL_PATH 0.2, 0.3, 0.1
+#define BORDER 0.0, 0.0, 0.0
 
 #define F first
 #define S second
@@ -29,14 +30,14 @@ typedef struct {
 	ii parent;
 } state_info;
 // Global Variables
-char title[] = "Maze";    // Windowed mode's title
+char title[] = "Maze";
 int refreshMillis = 300;                 // Refresh period in milliseconds
 ii source, destination;
+bool taking_input = false, source_input = false, dest_input = false;
 vvi maze, visited;
 vector<ii> shortest_path, exploration;
 const int ROCK = -1, GEM = 1, FREE = 0;
 
-GLint FPS = 24;
 GLint window_width = 700;
 GLint window_height = 500;
 GLfloat left_pos = 0.0;
@@ -60,7 +61,7 @@ bool valid(int i, int j, int r, int c) {
 	return false;
 }
 
-pair<vector<ii>, vector<ii>> findPathByDjikstra(ii s, ii d, vvi grid) {
+pair<vector<ii>, vector<ii> > findPathByDjikstra(ii s, ii d, vvi grid) {
 	vector<ii> path;
 	vector<ii> exploration;
 	priority_queue<pq_entry, vector<pq_entry>, greater<pq_entry> > pq;
@@ -125,14 +126,14 @@ pair<vector<ii>, vector<ii>> findPathByDjikstra(ii s, ii d, vvi grid) {
 
 void print_vector(vector<ii> path) {
 	for(auto pos: path) {
-        cout << "["<< pos.F<<","<< pos.S<< "] ";
+        cout << "("<< pos.F<<","<< pos.S<< ") ";
 	}
 	cout << endl;
 }
 void print_pair(ii p) {
-    printf("[%d,%d]\n", p.F, p.S);
+    printf("(%d,%d)\n", p.F, p.S);
 }
-int RunMode = 1;
+bool paused = false;
 int move_number = 0;
 
 void drawScene() {
@@ -140,12 +141,12 @@ void drawScene() {
 
 	ii bot_position;
 	bool explore_finished = false;
-    if (RunMode==1) {
+    if (!paused) {
         // Calculate animation parameters
         int b = shortest_path.size();
         int a = exploration.size();
         if(move_number >= (int)(a + b)){
-            RunMode = 0;
+            paused = true;
             bot_position = destination;
         } else if(move_number >= a) {
             explore_finished = true;
@@ -164,25 +165,31 @@ void drawScene() {
 	for (GLint x = 0; x < game_width; ++x) {
 		for (GLint y = 0; y < game_height; ++y) {
             int value  = maze[y][x];
-            if(explore_finished && x == bot_position.S && y == bot_position.F) {
-                print_pair(bot_position);
-                visited[y][x] = 1;
-                glColor3f(FINAL_PATH);
-            } else if(x == bot_position.S && y == bot_position.F){
-                print_pair(bot_position);
-                visited[y][x] = 1;
-                glColor3f(CURRENT);
-            } else if(x == source.S && y == source.F){
-                glColor3f(SOURCE);
-            } else if (value == GEM) {
-                glColor3f(BLACK);
-            } else if (visited[y][x] == 1)
-				glColor3f(VISITED);
-			else if (value == FREE)
-				glColor3f(BACKGROUND);
-			else if (value == ROCK)
-				glColor3f(OBSTACLE);
-
+            if(taking_input){
+               if(value == ROCK)
+                    glColor3f(OBSTACLE);
+               else if (value == FREE)
+                    glColor3f(BACKGROUND);
+            } else {
+                if(explore_finished && x == bot_position.S && y == bot_position.F) {
+                    print_pair(bot_position);
+                    visited[y][x] = 1;
+                    glColor3f(FINAL_PATH);
+                } else if(x == bot_position.S && y == bot_position.F){
+                    print_pair(bot_position);
+                    visited[y][x] = 1;
+                    glColor3f(CURRENT);
+                } else if(x == source.S && y == source.F){
+                    glColor3f(SOURCE);
+                } else if (value == GEM) {
+                    glColor3f(BLACK);
+                } else if (visited[y][x] == 1)
+                    glColor3f(VISITED);
+                else if (value == FREE)
+                    glColor3f(BACKGROUND);
+                else if (value == ROCK)
+                    glColor3f(OBSTACLE);
+            }
 			glVertex2f(x * xSize + left_pos, y * ySize + bottom_pos); // S-W point
 			glVertex2f((x + 1) * xSize + left_pos, y * ySize + bottom_pos); // S-E point
 			glVertex2f((x + 1) * xSize + left_pos, (y + 1) * ySize + bottom_pos); // N-W point
@@ -190,6 +197,18 @@ void drawScene() {
 		}
 	}
 	glEnd();
+	glColor3f(BORDER);
+	glBegin(GL_LINES);
+	for (GLint x = 0; x < game_width; ++x) {
+		for (GLint y = 0; y < game_height; ++y) {
+            glBegin(GL_LINES);
+            glVertex2f(x * xSize + left_pos, y * ySize + bottom_pos); // S-W point
+			glVertex2f((x + 1) * xSize + left_pos, y * ySize + bottom_pos); // S-E point
+			glVertex2f((x + 1) * xSize + left_pos, (y + 1) * ySize + bottom_pos); // N-W point
+			glVertex2f(x * xSize + left_pos, (y + 1) * ySize + bottom_pos); // N-E point
+            glEnd();
+		}
+	}
     // Flush the pipeline, swap the buffers
 	glFlush();
 	glutSwapBuffers();
@@ -209,20 +228,39 @@ void reshape(int w, int h) {
 
 void myKeyboardFunc( unsigned char key, int x, int y )
 {
-   switch ( key ) {
-   case 'r':
-      RunMode = 1-RunMode;      // Toggle to opposite value
-      if ( RunMode==1 ) {
+    switch ( key ) {
+    case 'r':
+    case 'R':
+        paused = !paused;      // Toggle to opposite value
+        if (!paused) {
          glutPostRedisplay();
-      }
-      break;
-   case 's':
-      RunMode = 1;
-      drawScene();
-      RunMode = 0;
-      break;
-   case 27:   // Escape key
-      exit(1);
+        }
+    break;
+    case 's':
+    case 'S':
+        paused = false;
+        drawScene();
+        paused = true;
+        break;
+    case 'f':
+    case 'F':
+        if(taking_input && !source_input && !dest_input) {
+            printf("Click on the source position, then press [F/f].\n");
+            source_input = true;
+        } else if(taking_input && source_input && !dest_input){
+            source_input = false;
+            dest_input = true;
+            printf("Click on the destination position, then press [F/f].\n");
+        } else if(taking_input && !source_input && dest_input) {
+            dest_input = false;
+            taking_input = false;
+            pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
+            exploration = data.F;
+            shortest_path = data.S;
+        }
+        break;
+    /*case 27:   // Escape key
+        exit(1);*/
    }
 }
 // glutSpecialFunc is called below to set this function to handle
@@ -242,6 +280,19 @@ void mySpecialKeyFunc( int key, int x, int y )
       }
       break;
    }
+}
+
+void take_input() {
+    int m, n;
+    printf("Rows: ");
+    cin >> m;
+    printf("Columns: ");
+    cin >> n;
+    printf("Fill the board.");
+    maze.assign(m, vi(n, 0));
+    visited.assign(m, vi(n, 0));
+    cout << "Task Finished (Press F/f): " << endl;
+    taking_input = true;
 }
 
 void initialize_grid() {
@@ -273,22 +324,57 @@ void initialize_grid() {
 void initGL() {
    glClearColor(BACKGROUND, 1.0); // Set background (clear) color to black
 }
+
+void mymenu(int value) {
+    if(value == 1)
+        //glClear();
+    if(value == 2)
+        exit(0);
+}
+/* Callback handler for mouse event */
+void mouse(int button, int state, int x, int y) {
+    int row = 0;
+    int col = 0;
+    if(taking_input && !source_input && !dest_input){
+        if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+          if (maze[row][col] == ROCK) {
+                maze[row][col] = FREE;
+          } else {
+                maze[row][col] = ROCK;
+          }
+        }
+    } else if(taking_input && source_input){
+        if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+          source = ii(row, col);
+          printf("Source = ");
+          print_pair(source);
+        }
+    } else if(taking_input && dest_input){
+        if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+          destination = ii(row, col);
+          printf("Destination = ");
+          print_pair(destination);
+        }
+    }
+}
+void addMenu() {
+    glutCreateMenu(mymenu); // single menu, no need for id
+    glutAddMenuEntry("Clear Screen", 1);
+    glutAddMenuEntry("Exit", 2);
+    glutAttachMenu(GLUT_RIGHT_BUTTON);
+}
 /* Called back when the timer expired */
 void Timer(int value) {
-    if(RunMode==1)
+    if(!paused)
         glutPostRedisplay();    // Post a paint request to activate display()
     glutTimerFunc(refreshMillis, Timer, 0); // subsequent timer call at milliseconds
 }
 
-void menu_message() {
-    cout << "Arrow keys control speed.  Press \"r\" to run,  \"s\" to single step." << endl;
-}
-
 int main(int argc, char **argv) {
-    initialize_grid();
-    menu_message();
-
+    //initialize_grid();
+    take_input();
 	glutInit(&argc, argv);
+	addMenu();
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH );
 	glutInitWindowSize(window_width, window_height);
 	glutInitWindowPosition(0, 0);
@@ -297,6 +383,7 @@ int main(int argc, char **argv) {
 	glutDisplayFunc(drawScene);
 	glutKeyboardFunc(myKeyboardFunc);           // Handles "normal" ASCII symbols
 	glutSpecialFunc( mySpecialKeyFunc );        // Handles "special" keyboard keys
+	glutMouseFunc(mouse);                       // Register callback handler for mouse event
 	initGL();                                   // Our own OpenGL initialization
 	glutTimerFunc(0, Timer, 0);                 // First timer call immediately
 	glutMainLoop();                             // Enter event-processing loop
