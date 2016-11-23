@@ -6,12 +6,14 @@
 using namespace std;
 #define WHITE 1.0, 1.0, 1.0
 #define DESTINATION 1.0, 0.0, 0.0
-#define OBSTACLE 0.5, 0.0, 0.4
-#define BACKGROUND 0.1, 0.3, 0.1
+#define OBSTACLE 0.545, 0.271, 0.075
+#define BACKGROUND 1.000, 0.980, 0.980
+//0.902, 0.902, 0.980
 #define CURRENT 0.1, 0.2, 0.4
-#define SOURCE 0.3, 0.6, 0.0
-#define VISITED 0.0, 0.0, 0.9
-#define FINAL_PATH 0.2, 0.3, 0.1
+#define SOURCE 1.000, 1.000, 0.000
+#define VISITED 0.678, 0.847, 0.902
+#define FINAL_PATH 0.000, 0.392, 0.000
+#define FINAL_VISITED 0.565, 0.933, 0.565
 #define BORDER 0.0, 0.0, 0.0
 
 #define F first
@@ -35,11 +37,11 @@ int refreshMillis = 300;                 // Refresh period in milliseconds
 ii source = ii(-1, -1), destination = ii(-1, -1);
 bool taking_input = false, source_input = false, dest_input = false;
 vvi maze, visited;
-set<ii> final_path;
+set<ii> final_visited;
 vector<ii> shortest_path, exploration;
 const int ROCK = -1, GEM = 1, FREE = 0;
 
-GLfloat BORDER_WIDTH = 4.0;
+GLfloat BORDER_WIDTH = 2.0;
 GLint window_width = 700;
 GLint window_height = 500;
 GLfloat left_pos = 0.0;
@@ -149,13 +151,11 @@ void drawScene() {
         int a = exploration.size();
         if(move_number >= (int)(a + b)){
             paused = true;
-            bot_position = destination;
-        } else if(move_number == a) {
-            cout << "Goal found!\nShowing the shortest path:-" << endl;
             explore_finished = true;
-            bot_position=shortest_path[move_number - a];
-            move_number++;
-        } else if(move_number> a){
+            bot_position = destination;
+        } else if(move_number >= a) {
+            if(move_number == a)
+                cout << "Goal found!\nShowing the shortest path:-" << endl;
             explore_finished = true;
             bot_position=shortest_path[move_number - a];
             move_number++;
@@ -185,9 +185,10 @@ void drawScene() {
                 if(explore_finished && x == bot_position.S && y == bot_position.F) {
                     print_pair(bot_position);
                     visited[y][x] = 1;
+                    final_visited.insert(ii(y,x));
                     glColor3f(FINAL_PATH);
-                } if(explore_finished && final_path.find(ii(y,x))!=final_path.end()){
-                    glColor3f(WHITE);
+                } else if(explore_finished && final_visited.find(ii(y,x))!=final_visited.end()){
+                    glColor3f(FINAL_VISITED);
                 } else if(x == bot_position.S && y == bot_position.F){
                     print_pair(bot_position);
                     visited[y][x] = 1;
@@ -242,17 +243,28 @@ void reshape(int w, int h) {
 void myKeyboardFunc( unsigned char key, int x, int y )
 {
     switch ( key ) {
+    case '1':
+        if(taking_input && !source_input && dest_input) {
+            dest_input = false;
+            taking_input = false;
+            printf("Finished taking input.\n");
+            pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
+            exploration = data.F;
+            shortest_path = data.S;
+            paused = false;
+        }
+        break;
     case 'p':
     case 'P':
         paused = !paused;      // Toggle to opposite value
         if (!paused) {
-         glutPostRedisplay();
+            glutPostRedisplay();
         }
     break;
     case 'r':
     case 'R':
         move_number = 0;
-        final_path.clear();
+        final_visited.clear();
         visited.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
         paused = false;
         break;
@@ -271,17 +283,6 @@ void myKeyboardFunc( unsigned char key, int x, int y )
             source_input = false;
             dest_input = true;
             printf("Right click on the destination position, then press [F/f].\n");
-        } else if(taking_input && !source_input && dest_input) {
-            dest_input = false;
-            taking_input = false;
-            printf("Finished taking input.\n");
-            pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
-            exploration = data.F;
-            shortest_path = data.S;
-            for(auto a: shortest_path) {
-                final_path.insert(a);
-            }
-            paused = false;
         }
         break;
       case 27:   // Escape key
@@ -319,31 +320,6 @@ void take_input() {
     taking_input = true;
 }
 
-void initialize_grid() {
-    ifstream fin;
-    fin.open("input.txt");
-    int m, n;
-    fin >> m >> n;
-    MAZE_HEIGHT = m;
-    MAZE_WIDTH = n;
-    maze.assign(m, vi(n));
-    visited.assign(m, vi(n, 0));
-    for (int i = 0; i < m; ++i) {
-        for (int j = 0; j < n; ++j) {
-            fin >> maze[i][j];
-            if(maze[i][j] == 1) {
-                destination = ii(i,j);
-                print_pair(destination);
-            }
-        }
-    }
-    fin >> source.first >> source.second;
-    pair<vector<ii>, vector<ii>> data = findPathByDjikstra(source, destination, maze);
-    exploration = data.F;
-    shortest_path = data.S;
-    //print_vector(shortest_path);
-    fin.close();
-}
 /* Initialize OpenGL Graphics */
 void initGL() {
    glClearColor(BACKGROUND, 1.0); // Set background (clear) color to black
@@ -384,7 +360,23 @@ void mouse(int button, int state, int x, int y) {
         }
     }
 }
-
+void mouse_motion(int x, int y){
+    double cell_width = glutGet(GLUT_WINDOW_WIDTH) /(double) MAZE_WIDTH;
+	double cell_height = glutGet(GLUT_WINDOW_HEIGHT) /(double) MAZE_HEIGHT;
+    int row = (MAZE_HEIGHT - 1) - (int) (y / cell_height);
+    int col = (int) (x / cell_width);
+    if(row < 0 || col < 0 || row >= MAZE_HEIGHT || col >= MAZE_WIDTH) {
+        return;
+    }
+    if(taking_input && !source_input && !dest_input){
+          if (maze[row][col] == ROCK) {
+                maze[row][col] = FREE;
+          } else {
+                maze[row][col] = ROCK;
+          }
+          glutPostRedisplay();
+    }
+}
 /* Called back when the timer expired */
 void Timer(int value) {
     if(!paused)
@@ -405,6 +397,7 @@ int main(int argc, char **argv) {
 	glutKeyboardFunc(myKeyboardFunc);           // Handles "normal" ASCII symbols
 	glutSpecialFunc( mySpecialKeyFunc );        // Handles "special" keyboard keys
 	glutMouseFunc(mouse);                       // Register callback handler for mouse event
+	glutMotionFunc(mouse_motion);
 	initGL();                                   // Our own OpenGL initialization
 	glutTimerFunc(0, Timer, 0);                 // First timer call immediately
 	glutMainLoop();                             // Enter event-processing loop
