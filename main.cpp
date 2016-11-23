@@ -5,7 +5,7 @@
 #include <bits/stdc++.h>
 using namespace std;
 #define WHITE 1.0, 1.0, 1.0
-#define BLACK 0.0, 0.0, 0.0
+#define DESTINATION 1.0, 0.0, 0.0
 #define OBSTACLE 0.5, 0.0, 0.4
 #define BACKGROUND 0.8, 0.0, 0.9
 #define CURRENT 0.1, 0.2, 0.4
@@ -38,14 +38,15 @@ vvi maze, visited;
 vector<ii> shortest_path, exploration;
 const int ROCK = -1, GEM = 1, FREE = 0;
 
+GLfloat BORDER_WIDTH = 3.0;
 GLint window_width = 700;
 GLint window_height = 500;
 GLfloat left_pos = 0.0;
 GLfloat right_pos = 1.0;
 GLfloat bottom_pos = 0.0;
 GLfloat top_pos = 1.0;
-GLint game_width = 4;
-GLint game_height = 4;
+GLint MAZE_WIDTH;
+GLint MAZE_HEIGHT;
 
 // Global variables
 double STRAIGHT = 1;
@@ -148,28 +149,35 @@ void drawScene() {
         if(move_number >= (int)(a + b)){
             paused = true;
             bot_position = destination;
-        } else if(move_number >= a) {
-            explore_finished = true;
+        } else if(move_number == a) {
             cout << "Goal found!" << endl;
+            explore_finished = true;
             bot_position=shortest_path[move_number - a];
             move_number++;
-        }else {
+        } else if(move_number> a){
+            bot_position=shortest_path[move_number - a];
+            move_number++;
+        } else {
             bot_position=exploration[move_number];
             move_number++;
         }
     }
-	GLfloat xSize = (right_pos - left_pos) / game_width;
-	GLfloat ySize = (top_pos - bottom_pos) / game_height;
+	GLfloat xSize = (right_pos - left_pos) / MAZE_WIDTH;
+	GLfloat ySize = (top_pos - bottom_pos) / MAZE_HEIGHT;
 
 	glBegin(GL_QUADS);
-	for (GLint x = 0; x < game_width; ++x) {
-		for (GLint y = 0; y < game_height; ++y) {
+	for (GLint x = 0; x < MAZE_WIDTH; ++x) {
+		for (GLint y = 0; y < MAZE_HEIGHT; ++y) {
             int value  = maze[y][x];
             if(taking_input){
                if(value == ROCK)
                     glColor3f(OBSTACLE);
                else if (value == FREE)
                     glColor3f(BACKGROUND);
+               else if(x == source.S && y == source.F)
+                    glColor3f(SOURCE);
+               else if (value == GEM)
+                    glColor3f(DESTINATION);
             } else {
                 if(explore_finished && x == bot_position.S && y == bot_position.F) {
                     print_pair(bot_position);
@@ -182,7 +190,7 @@ void drawScene() {
                 } else if(x == source.S && y == source.F){
                     glColor3f(SOURCE);
                 } else if (value == GEM) {
-                    glColor3f(BLACK);
+                    glColor3f(DESTINATION);
                 } else if (visited[y][x] == 1)
                     glColor3f(VISITED);
                 else if (value == FREE)
@@ -198,10 +206,11 @@ void drawScene() {
 	}
 	glEnd();
 	glColor3f(BORDER);
+	glLineWidth(BORDER_WIDTH);
 	glBegin(GL_LINES);
-	for (GLint x = 0; x < game_width; ++x) {
-		for (GLint y = 0; y < game_height; ++y) {
-            glBegin(GL_LINES);
+	for (GLint x = 0; x < MAZE_WIDTH; ++x) {
+		for (GLint y = 0; y < MAZE_HEIGHT; ++y) {
+            glBegin(GL_LINE_LOOP);
             glVertex2f(x * xSize + left_pos, y * ySize + bottom_pos); // S-W point
 			glVertex2f((x + 1) * xSize + left_pos, y * ySize + bottom_pos); // S-E point
 			glVertex2f((x + 1) * xSize + left_pos, (y + 1) * ySize + bottom_pos); // N-W point
@@ -254,9 +263,11 @@ void myKeyboardFunc( unsigned char key, int x, int y )
         } else if(taking_input && !source_input && dest_input) {
             dest_input = false;
             taking_input = false;
+            printf("Finished taking input.\n");
             pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
             exploration = data.F;
             shortest_path = data.S;
+            paused = false;
         }
         break;
     /*case 27:   // Escape key
@@ -283,14 +294,13 @@ void mySpecialKeyFunc( int key, int x, int y )
 }
 
 void take_input() {
-    int m, n;
     printf("Rows: ");
-    cin >> m;
+    cin >> MAZE_HEIGHT;
     printf("Columns: ");
-    cin >> n;
+    cin >> MAZE_WIDTH;
     printf("Fill the board.");
-    maze.assign(m, vi(n, 0));
-    visited.assign(m, vi(n, 0));
+    maze.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
+    visited.assign(MAZE_HEIGHT, vi(MAZE_WIDTH, 0));
     cout << "Task Finished (Press F/f): " << endl;
     taking_input = true;
 }
@@ -300,8 +310,8 @@ void initialize_grid() {
     fin.open("input.txt");
     int m, n;
     fin >> m >> n;
-    game_height = m;
-    game_width = n;
+    MAZE_HEIGHT = m;
+    MAZE_WIDTH = n;
     maze.assign(m, vi(n));
     visited.assign(m, vi(n, 0));
     for (int i = 0; i < m; ++i) {
@@ -325,16 +335,18 @@ void initGL() {
    glClearColor(BACKGROUND, 1.0); // Set background (clear) color to black
 }
 
-void mymenu(int value) {
-    if(value == 1)
-        //glClear();
-    if(value == 2)
-        exit(0);
-}
 /* Callback handler for mouse event */
 void mouse(int button, int state, int x, int y) {
-    int row = 0;
-    int col = 0;
+    double cell_width = glutGet(GLUT_WINDOW_WIDTH) /(double) MAZE_WIDTH;
+	double cell_height = glutGet(GLUT_WINDOW_HEIGHT) /(double) MAZE_HEIGHT;
+    int row = (MAZE_HEIGHT - 1) - (int) (y / cell_height);
+    int col = (int) (x / cell_width);
+
+    printf("Cell clicked: ");print_pair(ii(row, col));
+
+    if(row < 0 || col < 0 || row >= MAZE_HEIGHT || col >= MAZE_WIDTH) {
+        return;
+    }
     if(taking_input && !source_input && !dest_input){
         if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
           if (maze[row][col] == ROCK) {
@@ -351,18 +363,14 @@ void mouse(int button, int state, int x, int y) {
         }
     } else if(taking_input && dest_input){
         if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+          maze[row][col] = GEM;
           destination = ii(row, col);
           printf("Destination = ");
           print_pair(destination);
         }
     }
 }
-void addMenu() {
-    glutCreateMenu(mymenu); // single menu, no need for id
-    glutAddMenuEntry("Clear Screen", 1);
-    glutAddMenuEntry("Exit", 2);
-    glutAttachMenu(GLUT_RIGHT_BUTTON);
-}
+
 /* Called back when the timer expired */
 void Timer(int value) {
     if(!paused)
@@ -374,7 +382,6 @@ int main(int argc, char **argv) {
     //initialize_grid();
     take_input();
 	glutInit(&argc, argv);
-	addMenu();
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH );
 	glutInitWindowSize(window_width, window_height);
 	glutInitWindowPosition(0, 0);
