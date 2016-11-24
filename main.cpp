@@ -152,7 +152,7 @@ pair<vector<ii>, vector<ii> > findPathByAStar(ii s, ii d, vvi grid) {
 	while (!pq.empty()) {
 		pq_entry front = pq.top();
 		state pop = front.S;
-		explore.pb(pop);
+		//explore.pb(pop);
 		double pcost = front.F - heuristic_estimate(pop,d);
 		if (pop == d) {
 			state temp = d;
@@ -170,6 +170,7 @@ pair<vector<ii>, vector<ii> > findPathByAStar(ii s, ii d, vvi grid) {
 		if (pcost > m[pop].cost)
 			continue;
 		// add neighbors
+		explore.pb(pop);
 		for (int i = 0; i < (int) offsets.size(); i++) {
 			int ni = pop.F + offsets[i].F;
 			int nj = pop.S + offsets[i].S;
