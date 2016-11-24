@@ -13,7 +13,7 @@ using namespace std;
 #define SOURCE 1.000, 1.000, 0.000
 #define VISITED 0.678, 0.847, 0.902
 #define FINAL_PATH 0.000, 0.392, 0.000
-#define FINAL_VISITED 0.565, 0.933, 0.565
+#define FINAL_VISITED 0.196, 0.804, 0.196
 #define BORDER 0.0, 0.0, 0.0
 
 #define F first
@@ -50,7 +50,8 @@ GLfloat bottom_pos = 0.0;
 GLfloat top_pos = 1.0;
 GLint MAZE_WIDTH;
 GLint MAZE_HEIGHT;
-
+typedef vector<double> vd;
+vd visited_color(3);
 // Global variables
 double STRAIGHT = 1;
 double DIAGONAL = sqrt(2);
@@ -59,6 +60,14 @@ state NIL = mp(-1, -1);
 vector<ii> offsets = { { 1, 0 }, { 1, -1 }, { 0, -1 }, { -1, -1 }, { -1, 0 }, { -1,
 		1 }, { 0, 1 }, { 1, 1 } }; //E, SE, S, SW, W, NW, N, NE
 
+
+vd get_next_visited_color(vd temp){
+    vd ret(3);
+    ret[0] = ((double) rand() / (RAND_MAX));
+    ret[1] = ((double) rand() / (RAND_MAX));
+    ret[2] = ((double) rand() / (RAND_MAX));
+    return ret;
+}
 bool valid(int i, int j, int r, int c) {
 	if (i >= 0 && j >= 0 && i < r && j < c)
 		return true;
@@ -193,7 +202,51 @@ pair<vector<ii>, vector<ii> > findPathByAStar(ii s, ii d, vvi grid) {
 	cout << '\n';
 	return mp(explore, path);
 }
+bool over = false;
+bool dfs(ii u, double cost, double cost_limit , vector<ii>& path, vector<ii>& explored, ii source_loc,ii dest_loc,vvi grid_map) {
+	if (cost > cost_limit) {
+		return false;
+	}
+	if (u == dest_loc || over) {
+		over = true;
+		return true;
+	}
+    explored.pb(u);
+	int r = grid_map.size();
+	int c = grid_map[0].size();
+	for (int i = 0; i < (int) offsets.size(); ++i) {
+		ii v = ii(u.first + offsets[i].first, u.second + offsets[i].second);
+		if (valid(u.first + offsets[i].first, u.second + offsets[i].second, r, c)) {
+			if (grid_map[u.first + offsets[i].first][u.second + offsets[i].second]
+					!= -1) {
+				double step_cost = DIAGONAL;
+				if (offsets[i].first == 0 || offsets[i].second == 0)
+					step_cost = STRAIGHT;
+					path.pb(v);
 
+					if (dfs(v, cost + step_cost, cost_limit , path, explored , source_loc, dest_loc ,grid_map)) {
+						return true;
+					}
+					path.pop_back();
+			}
+		}
+	}
+	return false;
+}
+pair<vector<ii>, vector<ii> > iterative_lengthening(ii source_loc,ii dest_loc,vvi grid_map) {
+	vector<ii> explored, path;
+	for (double limit = 0;; limit += 1.0) {
+		path.clear();
+		//explored.clear();
+		path.pb(source_loc);
+		//explored.pb(source_loc);
+		if (dfs(source_loc, 0, limit, path, explored , source_loc, dest_loc ,grid_map)) {
+			break;
+		}
+	}
+	over = false;
+	return mp(explored, path);
+}
 void print_vector(vector<ii> path) {
 	for(auto pos: path) {
         cout << "("<< pos.F<<","<< pos.S<< ") ";
@@ -232,7 +285,7 @@ void drawScene() {
     }
 	GLfloat xSize = (right_pos - left_pos) / MAZE_WIDTH;
 	GLfloat ySize = (top_pos - bottom_pos) / MAZE_HEIGHT;
-
+    vd next_visited_color = get_next_visited_color(visited_color);
 	glBegin(GL_QUADS);
 	for (GLint x = 0; x < MAZE_WIDTH; ++x) {
 		for (GLint y = 0; y < MAZE_HEIGHT; ++y) {
@@ -244,8 +297,9 @@ void drawScene() {
                     glColor3f(SOURCE);
                else if (value == GEM)
                     glColor3f(DESTINATION);
-               else if (value == FREE)
+               else if (value == FREE){
                     glColor3f(BACKGROUND);
+               }
 
             } else {
                 if(explore_finished && x == bot_position.S && y == bot_position.F) {
@@ -256,15 +310,18 @@ void drawScene() {
                 } else if(explore_finished && final_visited.find(ii(y,x))!=final_visited.end()){
                     glColor3f(FINAL_VISITED);
                 } else if(x == bot_position.S && y == bot_position.F){
-                    print_pair(bot_position);
+                    //print_pair(bot_position);
                     visited[y][x] = 1;
                     glColor3f(CURRENT);
                 } else if(x == source.S && y == source.F){
                     glColor3f(SOURCE);
                 } else if (value == GEM) {
                     glColor3f(DESTINATION);
-                } else if (visited[y][x] == 1)
+                } else if (visited[y][x] == 1){
                     glColor3f(VISITED);
+                   // glColor3f(next_visited_color[0],next_visited_color[1],next_visited_color[2]);
+
+                }
                 else if (value == FREE)
                     glColor3f(BACKGROUND);
                 else if (value == ROCK)
@@ -313,19 +370,33 @@ void myKeyboardFunc( unsigned char key, int x, int y )
         if(taking_input && !source_input && dest_input) {
             dest_input = false;
             taking_input = false;
-            printf("Finished taking input.\n");
+            printf("Starting Dijkstra...\n");
             pair<vector<ii>, vector<ii> > data = findPathByDjikstra(source, destination, maze);
             exploration = data.F;
             shortest_path = data.S;
             paused = false;
+            visited_color[0] = 1;
+            visited_color[1] = 1;
+            visited_color[2] = 0;
         }
         break;
     case '2':
         if(taking_input && !source_input && dest_input) {
             dest_input = false;
             taking_input = false;
-            printf("Finished taking input.\n");
+            printf("Starting A-Star...\n");
             pair<vector<ii>, vector<ii> > data = findPathByAStar(source, destination, maze);
+            exploration = data.F;
+            shortest_path = data.S;
+            paused = false;
+        }
+        break;
+    case '3':
+        if(taking_input && !source_input && dest_input) {
+            dest_input = false;
+            taking_input = false;
+            printf("Starting Iterative Lengthening...\n");
+            pair<vector<ii>, vector<ii> > data = iterative_lengthening(source, destination, maze);
             exploration = data.F;
             shortest_path = data.S;
             paused = false;
@@ -434,6 +505,8 @@ void mouse(int button, int state, int x, int y) {
           destination = ii(row, col);
           printf("Destination = ");
           print_pair(destination);
+          printf("\tPress '1' for Dijkstra Algorithm.\n");
+          printf("\tPress '2' for A-Star Algorithm.\n");
         }
     }
 }
